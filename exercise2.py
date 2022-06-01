@@ -1,33 +1,22 @@
 import numpy as np
-from sklearn.datasets import make_blobs
+import matplotlib.pyplot as plt
+from sammon import sammon as ss
+from sklearn import datasets
+from sklearn.datasets import make_blobs, make_s_curve
 from sklearn.metrics import pairwise_distances
 from sklearn.decomposition import PCA
 
 def distance_matrix(X1, X2, metric="euclidean"):
-    return np.triu(pairwise_distances(X1, X2, metric=metric))
+    return pairwise_distances(X1, X2, metric=metric)
 
 def sammon_stress(in_X, out_X):
-    S = distance_matrix(in_X, in_X)
-    d = distance_matrix(out_X, out_X)
+    S = np.triu(in_X)
+    d = np.triu(out_X)
     return (1 / np.sum(S)) * np.sum(np.divide(np.square(d - S), S, out=np.zeros_like(S), where=S!=0))
-
-def gradient(c, in_dist, Y):
-    out_dist = distance_matrix(Y, Y)
-    out_dist_city = distance_matrix(Y, Y, "cityblock")
-    
-    num1 = in_dist - out_dist
-    den1 = out_dist*in_dist
-    first = (-2/c) * np.sum(np.divide(num1, den1, out=np.zeros_like(num1), where=den1!=0) * out_dist_city)
-    den2 = in_dist*out_dist
-    second = (-2/c) * np.sum(
-        np.divide(1, den2, out=np.zeros_like(den2), where=den2!=0)
-        * (in_dist - out_dist)
-        - np.divide(np.square(out_dist_city), out_dist, out=np.zeros_like(out_dist_city), where=out_dist!=0)
-        *(1 + np.divide(num1, out_dist, out=np.zeros_like(num1), where=out_dist!=0)))
-    return first / second
 
 
 def gradi(i, X, Y):
+    shit = 1e-10
     S = distance_matrix(X, X)
     d = distance_matrix(Y, Y)
     c = np.sum(S)
@@ -37,94 +26,123 @@ def gradi(i, X, Y):
         if j == i:
             continue
 
-        # print(first)
-        calc = (Y[i] - Y[j]) * (S[i, j] - d[i, j]) / (d[i, j] * S[i, j])
+        denominator = (d[i, j] * S[i, j])
+        first += (Y[i] - Y[j]) * (S[i, j] - d[i, j]) / denominator if denominator > shit else shit
 
-        calc2 = (1/(S[i, j]*d[i, j])) * ((S[i, j] - d[i, j]) - (np.square(Y[i] - Y[j]) / d[i, j]) * (1 + (S[i, j] - d[i, j])/d[i, j]) )
-        # print(calc)
-        first += calc
-        second += calc2
-        # print(first)
-    print("=======================")
-    print(first)
-    print((-2/c)*first)
-    print("=======================")
-    print(second)
-    print((-2/c)*second)
+        denominator = (S[i, j]*d[i, j])
+        second += (1/denominator if denominator > shit else shit) * ((S[i, j] - d[i, j]) - (np.square(Y[i] - Y[j]) / d[i, j] if d[i, j] > shit else shit) * (1 + (S[i, j] - d[i, j]) / d[i, j] if d[i, j] > shit else shit) )
+
+    first *= (-2/c)
+    second *= (-2/c)
     return (first / second)
 
 
-def sammon(X, max_iter=100, epsilon=0.05, alpha=0.5):
+def sammon(X, max_iter=100, epsilon=0.01, alpha=0.3):
     """Sammon Mapping"""
+    print("Max iter:", max_iter)
+    print("Epsilon:", epsilon)
+    print("Alpha:", alpha)
     n = X.shape[0]
     Y = make_blobs(n_samples=n, n_features=2, centers=1, random_state=1337)[0]
-    in_dist = distance_matrix(X, X)
-    c = np.sum(in_dist)
-    for it in range(max_iter):
-        out_dist = distance_matrix(Y, Y)
-        # first = np.array()
+    # Y = PCA(n_components=2).fit_transform(X)
+    S = distance_matrix(X, X)
+    S = np.where(S!=0, S, 1e-100)
+    c = np.sum(S)
+    shit = 1e-10
+    for t in range(max_iter):
+        if sammon_stress(X, Y) < epsilon:
+                break
+        Y = Y - alpha*np.gradient()
+        
+
+        first = np.array([0, 0], dtype=np.float64)
+        second = np.array([0, 0], dtype=np.float64)
         for i in range(Y.shape[0]):
-            # Y[i] = Y[i] - alpha * gradi(i, X, Y)
-            print(gradi(i, X, Y))
-            # FIX DIVIDE BY ZERO!
+            d = distance_matrix(Y, Y)
+            d = np.where(d!=0, d, 1e-100)
+            for j in range(len(Y)):
+                if j == i:
+                    continue
+
+                denominator = (d[i, j] * S[i, j])
+                first += (Y[i] - Y[j]) * (S[i, j] - d[i, j]) / denominator
+                denominator = (S[i, j]*d[i, j])
+                second += (1/denominator if denominator > shit else shit) * ((S[i, j] - d[i, j]) - (np.square(Y[i] - Y[j]) / d[i, j] if d[i, j] > shit else shit) * (1 + (S[i, j] - d[i, j]) / d[i, j] if d[i, j] > shit else shit) )
+                # print(second)
+
+            first *= (-2/c)
+            second *= (-2/c)
+            Y = Y - alpha*(first/second)
+            # print(sammon_stress(X, Y))
+    return Y
 
 
-                # print( ((in_dist[i, j] - out_dist[i, j]) / (out_dist[i, j] * in_dist[i, j])) * (Y[i] - Y[j]) )
-                # print((in_dist[i, j] - out_dist[i, j]) * (Y[i] - Y[j]))
-        exit()
+def gradient(i, Y, S, d):
+    """"""
+    c = np.sum(np.triu(S))
+    first = np.array([0, 0], dtype=np.float64)
+    second = np.array([0, 0], dtype=np.float64)
+    y_indices = list(range(Y.shape[0]))
+    y_indices.remove(i)
+    for j in y_indices:
+        denom1 = d[i,j] * S[i,j]
+        denom1 = np.where(denom1==0, 1e-100, denom1)
+        first += ((S[i,j] - d[i,j]) / denom1) * (Y[i] - Y[j])
 
-        # Y = Y - alpha*gradient(c, in_dist, Y)
-        # E = sammon_stress(X, Y)
-        # print("E:", E)
-        # if E < epsilon:
-        #     break
-    print(E)
+        denom2 = S[i,j] * d[i,j]
+        denom2 = np.where(denom2==0, 1e-100, denom2)
+        denom3 = d[i,j] if d[i,j] != 0 else 1e-100
+        second += (1 / denom2) * ( (S[i,j] - d[i,j]) - ((np.square(Y[i] - Y[j]) / denom3) * (1 + ( (S[i,j] - d[i,j]) / denom3 ))) )
+    return ((-2/c)*first)/np.abs((-2/c)*second)
+
+def hej(X, max_iter=100, epsilon=0.01, alpha=0.3):
+    S = distance_matrix(X, X)
+    Y = make_blobs(n_samples=X.shape[0], n_features=2, centers=1, random_state=1337)[0]
+    # Y = PCA(n_components=2, random_state=1).fit_transform(X)
+    plt.figure()
+    plt.scatter(Y[:,0], Y[:,1])
+    for t in range(max_iter):
+        d = distance_matrix(Y, Y)
+        E = sammon_stress(S, d)
+        print(f"Iter: {t}, E = {E}")
+        if E < epsilon:
+            break
+
+        for i in range(Y.shape[0]):
+            Y[i] = Y[i] - alpha * gradient(i, Y, S, d)
+        if t%10 == 0:
+            plt.figure()
+            plt.scatter(Y[:,0], Y[:,1])
+    plt.figure()
+    plt.scatter(Y[:,0], Y[:,1])
+    return Y
 
 
-X, y = make_blobs(n_samples=10, n_features=10, random_state=1)
-Y = PCA(n_components=2).fit_transform(X)
-print(X)
-print(Y)
-print(sammon_stress(X, Y))
+
+# X, y = make_blobs(n_samples=10, n_features=3, random_state=1)
+# Y = PCA(n_components=2).fit_transform(X)
+
+
+
+
+X, y = make_s_curve(300, random_state=1)
+Y = hej(X, max_iter=50, epsilon=0.013, alpha=0.4)
+
+fig = plt.figure()
+ax = fig.add_subplot(projection="3d")
+ax.scatter(X[:,0], X[:,1], X[:,2])
+
+plt.figure()
+plt.scatter(Y[:,0], Y[:,1])
+
+# X_sammon = ss(X, 2)
+# X_sammon = X_sammon[0]
+# plt.figure()
+# plt.scatter(X_sammon[:,0], X_sammon[:,1])
+
+plt.show()
 exit()
+# X_sammon = sammon(X, max_iter=1, epsilon=0.01, alpha=0.3)
 
-X = make_blobs(n_samples=3, n_features=3, centers=1, random_state=2)[0]
-Y = np.array([[3, 10], [4, 7], [1, 4]])
-
-# (3*(3-1))/2
-
-# print(Y[0] - Y[1])
-
-# print(Y)
-# print(pairwise_distances(Y, Y, metric="euclidean"))
-
-# print("-----------------------")
-# for y1 in Y:
-#     for y2 in Y:
-#         if np.array_equal(y1, y2):
-#             continue
-#         print(y1 - y2)
-
-
-# print( np.array([]) )
-
-# [[[0, 0, 0], [-1, 3], []] 
-#  [0.         0.         4.24264069] 
-#  [0.         0.         0.        ]]
-
-# exit()
-
-
-# print(distance_matrix(X, X, metric=lambda i, j: i))
-
-# print("------------------------")
-# print(distance_matrix(X, X, "cityblock"))
-# print("------------------------")
-
-# print(np.subtract(X, X))
-# exit()
-
-print(distance_matrix(X, X))
-print(np.sum(distance_matrix(X, X)))
-print("-----------")
-sammon(X)
+plt.show()
+# y = sammon(x, max_iter=300, epsilon=0.001, alpha=0.3)
