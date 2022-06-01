@@ -23,27 +23,25 @@ def gradient(i, Y, S, d):
     y_indices = list(range(Y.shape[0]))
     y_indices.remove(i)
     for j in y_indices:
-        denom1 = d[i,j] * S[i,j]
-        denom1 = np.where(denom1==0, 1e-100, denom1)
-        first += ((S[i,j] - d[i,j]) / denom1) * (Y[i] - Y[j])
-
-        denom2 = S[i,j] * d[i,j]
-        denom2 = np.where(denom2==0, 1e-100, denom2)
-        denom3 = d[i,j] if d[i,j] != 0 else 1e-100
-        second += (1 / denom2) * ( (S[i,j] - d[i,j]) - ((np.square(Y[i] - Y[j]) / denom3) * (1 + ( (S[i,j] - d[i,j]) / denom3 ))) )
+        first += ((S[i,j] - d[i,j]) / (d[i,j] * S[i,j])) * (Y[i] - Y[j])
+        second += (1 / (S[i,j] * d[i,j])) * ( (S[i,j] - d[i,j]) - ((np.square(Y[i] - Y[j]) / d[i,j]) * (1 + ( (S[i,j] - d[i,j]) / d[i,j] ))) )
     return ((-2/c)*first)/np.abs((-2/c)*second)
 
-def sammon(X, max_iter=100, epsilon=0.01, alpha=0.3):
+def sammon(X, max_iter=100, epsilon=0.01, alpha=0.3, verbose=False):
     """Sammon Mapping"""
     S = distance_matrix(X, X)
+    S = np.where(S==0, 1e-100, S)
     Y = make_blobs(n_samples=X.shape[0], n_features=2, centers=1, random_state=1337)[0]
     # Y = PCA(n_components=2, random_state=1).fit_transform(X)
 
     for t in range(max_iter):
         d = distance_matrix(Y, Y)
+        d = np.where(d==0, 1e-100, d)
         E = sammon_stress(S, d)
-        print(f"Iter: {t}, E = {E}")
+        if verbose:
+            print(f"Iter: {t}, E = {E}")
         if E < epsilon:
+            print(f"Error threshold of {epsilon}, reached at iter {t}. E = {E}")
             break
 
         for i in range(Y.shape[0]):
@@ -52,7 +50,7 @@ def sammon(X, max_iter=100, epsilon=0.01, alpha=0.3):
 
 
 X, y = make_s_curve(300, random_state=1)
-Y = sammon(X, max_iter=210, epsilon=0.013, alpha=0.4)
+Y = sammon(X, max_iter=50, epsilon=0.023, alpha=1, verbose=True)
 
 fig = plt.figure()
 ax = fig.add_subplot(projection="3d")
