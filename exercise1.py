@@ -15,10 +15,15 @@ def bkmeans(X:np.ndarray, k:int, i:int) -> np.ndarray:
         res[most_common_indices] = np.where(new_clusters == 0, most_common_k, kk)
     return res
 
-X, y = make_blobs(n_samples=1000, centers=10, n_features=2)
-k = 10
-c = bkmeans(X, k, 100)
+def main():
+    X, y = make_blobs(n_samples=1000, centers=10, n_features=2)
+    k = 10
+    c = bkmeans(X, k, 100)
 
-plt.figure()
-plt.scatter(X[:, 0], X[:, 1], c=c, cmap=generate_colormap(k))
-plt.show()
+    plt.figure()
+    plt.scatter(X[:, 0], X[:, 1], c=c, cmap=generate_colormap(k))
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
