@@ -96,31 +96,32 @@ def vowel():
     # plt.legend()
 
     Y_t = TSNE(n_components=2, init="pca", learning_rate="auto").fit_transform(X)
-    # Y = bkmeans(Y_t, k=len(labels), i=10)
-    # plt.figure()
-    # plt.title("Bisecting k-Means")
-    # plt.scatter(Y_t[:, 0], Y_t[:, 1], c=cmap(norm(Y)), marker=".")
 
-    # from sklearn.cluster import k_means
-    # Y = k_means(Y_t, n_clusters=len(labels), n_init=10)[1]
-    # plt.figure()
-    # plt.title("Classic k-Means")
-    # plt.scatter(Y_t[:, 0], Y_t[:, 1], c=cmap(norm(Y)), marker=".")
+    Y = bkmeans(Y_t, k=len(labels), i=10)
+    plt.figure()
+    plt.title("Bisecting k-Means")
+    plt.scatter(Y_t[:, 0], Y_t[:, 1], c=cmap(norm(Y)), marker=".")
 
-    # from sklearn.cluster import AgglomerativeClustering
-    # Y = AgglomerativeClustering(n_clusters=len(labels)).fit_predict(Y_t)
-    # plt.figure()
-    # plt.title("Agglomerative Clustering")
-    # plt.scatter(Y_t[:, 0], Y_t[:, 1], c=cmap(norm(Y)), marker=".")
+    from sklearn.cluster import k_means
+    Y = k_means(Y_t, n_clusters=len(labels), n_init=10)[1]
+    plt.figure()
+    plt.title("Classic k-Means")
+    plt.scatter(Y_t[:, 0], Y_t[:, 1], c=cmap(norm(Y)), marker=".")
+
+    from sklearn.cluster import AgglomerativeClustering
+    Y = AgglomerativeClustering(n_clusters=len(labels)).fit_predict(Y_t)
+    plt.figure()
+    plt.title("Agglomerative Clustering")
+    plt.scatter(Y_t[:, 0], Y_t[:, 1], c=cmap(norm(Y)), marker=".")
 
 
 
-    plt.figure("Vowel, t-SNE")
-    # plt.subplot(3, 3, 8)
-    plt.title("Vowel, t-SNE")
-    for i, l in enumerate(labels):
-        plt.scatter(Y_t[y==i, 0], Y_t[y==i, 1], c=cmap(norm(y[y==i])), label=l, marker=".")
-    plt.legend()
+    # plt.figure("Vowel, t-SNE")
+    # # plt.subplot(3, 3, 8)
+    # plt.title("Vowel, t-SNE")
+    # for i, l in enumerate(labels):
+    #     plt.scatter(Y_t[y==i, 0], Y_t[y==i, 1], c=cmap(norm(y[y==i])), label=l, marker=".")
+    # plt.legend()
 
     # Y_s = sammon(X, max_iter=50, epsilon=0.01, alpha=1, verbose=True)
     # # plt.figure("Vowel, Sammon")
