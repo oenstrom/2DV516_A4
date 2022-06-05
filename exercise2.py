@@ -49,9 +49,12 @@ def upper_tri_masking(A):
     mask = r[:,None] < r
     return A[mask]
 
-def fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, verbose=False):
-    Y = make_blobs(n_samples=X.shape[0], n_features=2, centers=1, random_state=1337)[0]
-    Y = PCA(n_components=2, random_state=1).fit_transform(X)
+def fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, init="random", verbose=False):
+    if init == "random":
+        Y = make_blobs(n_samples=X.shape[0], n_features=2, centers=1, random_state=1337)[0]
+    else:
+        Y = PCA(n_components=2).fit_transform(X)
+
     S = pairwise_distances(X)
     S = np.where(S==0, 1e-150, S)
 
@@ -69,33 +72,22 @@ def fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, verbose=False):
             print(f"Error threshold of {epsilon}, reached at iter {t}. E = {E}")
             break
 
-        d_1d = d.reshape(l*l)
-        first_first_1d = ((S-d)/(d*S)).reshape(l*l)
-        second_last_1d = (1 + ((S-d)/d))
-        # np.fill_diagonal(second_last_1d, 0)
-        second_last_1d = second_last_1d.reshape(l*l)
-        second_first_1d = (1/(S*d)).reshape(l*l)
-        second_mid_1d = (S-d).reshape(l*l)
+        first_1_1d  = ((S-d)/(d*S)).reshape(l*l)
+        second_1_1d, second_2_1d = (1/(S*d)).reshape(l*l), (S-d).reshape(l*l)
+        second_3_1d, second_4_1d = d.reshape(l*l), (1 + ((S-d)/d)).reshape(l*l)
         for i in range(Y.shape[0]):
-            first_first_M = first_first_1d[(i*l):(i*l)+l]
-            d_temp = d_1d[(i*l):(i*l)+l]
-            first_M = second_first_1d[(i*l):(i*l)+l]
-            mid_M = second_mid_1d[(i*l):(i*l)+l]
+            start, end = i*l, (i*l)+l
 
-            first = (-2/c)*np.sum(np.c_[first_first_M, first_first_M] * (Y[i] - Y), axis=0)
-            second = (-2/c)*np.sum(np.c_[first_M, first_M] * (np.c_[mid_M, mid_M] - ((np.square(Y[i] - Y)/d_temp[:, None]) * second_last_1d[(i*l):(i*l)+l][:, None])), axis=0)
+            first_f1 = first_1_1d[start:end]
+            first = (-2/c)*np.sum(np.c_[first_f1, first_f1] * (Y[i] - Y), axis=0)
+            
+            second_1, second_2 = second_1_1d[start:end], second_2_1d[start:end]
+            second_3, second_4 = second_3_1d[start:end], second_4_1d[start:end]
+            second = (-2/c)*np.sum(np.c_[second_1, second_1] * (np.c_[second_2, second_2] - ((np.square(Y[i] - Y)/second_3[:, None]) * second_4[:, None])), axis=0)
 
-            # (1/(S*d))     (S-d) - (np.square(Y[i] - Y)/d_temp[:, None]) * second_last_1d[(i*l):(i*l)+l][:, None]    # Maybe remove 1 from the diagonal!!!!
             Y[i] = Y[i] - (alpha * (first/np.abs(second)))
     return Y
 
-def gradient_descent(X, y, a = 0.01, n = 1000):
-    """Perform gradient descent on the given X"""
-    w = np.zeros(X.shape[1])
-    for _ in range(n):
-        j = (X.T).dot(X.dot(w) - y)
-        w = w - (a * j) / X.shape[0]
-    return w
 
 def main():
     X, y = make_s_curve(1000, random_state=1)
@@ -124,5 +116,55 @@ def main():
 
     plt.show()
 
+def load_data(file_path, x_lower, x_upper, y_pos):
+    data = np.array(arff.loadarff(file_path)[0].tolist())
+    X, classes = np.array(data[:, x_lower:x_upper], dtype=np.float64), np.array(data[:, y_pos], dtype=str)
+    labels, y = np.unique(classes, return_inverse=True)
+    return (X, y, labels)
+
+def plot(X_pca, X_tsne, X_sammon, y, plt_i, labels, title):
+    min_y, max_y = min(y), max(y)
+    norm = Normalize(vmin=min_y, vmax=max_y)
+    cmap = get_cmap("Set3")
+    for r, X in enumerate([[X_pca, "PCA"], [X_tsne, "t-SNE"], [X_sammon, "Sammon"]]):
+        plt.subplot(3, 3, plt_i + r)
+        plt.title(f"{title} | {X[1]}")
+        for i, l in enumerate(labels):
+            plt.scatter(X[0][y==i, 0], X[0][y==i, 1], c=cmap(norm(y[y==i])), label=l, marker=".")
+        plt.legend()
+
 if __name__ == "__main__":
-    main()
+    # main()
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import Normalize
+    import warnings
+    from matplotlib.cm import get_cmap
+    from sklearn.decomposition import PCA
+    from sklearn.manifold import TSNE
+    import numpy as np
+    from scipy.io import arff
+    warnings.filterwarnings("ignore")
+
+    X_v, y_v, labels_v    = load_data("data/vehicle.arff", 0, -1, -1)
+    X_d, y_d, labels_d    = load_data("data/diabetes.arff", 0, -1, -1)
+    X_vo, y_vo, labels_vo = load_data("data/vowel.arff", 2, -1, -1)
+
+
+    Y_v_p = PCA(n_components=2).fit_transform(X_v)
+    Y_v_t = TSNE(n_components=2, init="pca", learning_rate="auto").fit_transform(X_v)
+    Y_v_s = fast_sammon(X_v, max_iter=200, epsilon=0.005, alpha=1, verbose=True)
+
+    Y_d_p = PCA(n_components=2).fit_transform(X_d)
+    Y_d_t = TSNE(n_components=2, init="pca", learning_rate="auto").fit_transform(X_d)
+    Y_d_s = fast_sammon(X_d, max_iter=200, epsilon=0.013, alpha=1, verbose=True)
+
+    Y_vo_p = PCA(n_components=2).fit_transform(X_vo)
+    Y_vo_t = TSNE(n_components=2, init="pca", learning_rate="auto").fit_transform(X_vo)
+    Y_vo_s = fast_sammon(X_vo, max_iter=200, epsilon=0.065, alpha=0.9, verbose=True)
+
+    plt.figure(figsize=(24, 12))
+    plot(Y_v_p, Y_v_t, Y_v_s, y_v, 1, labels_v, "Vehicle")
+    plot(Y_d_p, Y_d_t, Y_d_s, y_d, 4, labels_d, "Diabetes")
+    plot(Y_vo_p, Y_vo_t, Y_vo_s, y_vo, 7, labels_vo, "Vowel")
+    plt.subplots_adjust(left=0.025, bottom=0.025, right=0.99, top=0.97, wspace=0.1, hspace=0.2)
+    plt.show()
