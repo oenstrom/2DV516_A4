@@ -53,14 +53,14 @@ def fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, verbose=False):
     Y = make_blobs(n_samples=X.shape[0], n_features=2, centers=1, random_state=1337)[0]
     Y = PCA(n_components=2, random_state=1).fit_transform(X)
     S = pairwise_distances(X)
-    S = np.where(S==0, 1e-100, S)
+    S = np.where(S==0, 1e-150, S)
 
     c = np.sum(np.triu(S))
     l = S.shape[0]
 
     for t in range(max_iter):
         d = pairwise_distances(Y)
-        d = np.where(d==0, 1e-100, d)
+        d = np.where(d==0, 1e-150, d)
 
         E = sammons_stress(S, d)
         if verbose:
@@ -68,10 +68,7 @@ def fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, verbose=False):
         if E < epsilon:
             print(f"Error threshold of {epsilon}, reached at iter {t}. E = {E}")
             break
-        
-        # print(np.sum((S-d)/(d*S)))
-        # print(Y[0] - Y)
-        # print("----------------------------")
+
         d_1d = d.reshape(l*l)
         first_first_1d = ((S-d)/(d*S)).reshape(l*l)
         second_last_1d = (1 + ((S-d)/d))
@@ -90,10 +87,6 @@ def fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, verbose=False):
 
             # (1/(S*d))     (S-d) - (np.square(Y[i] - Y)/d_temp[:, None]) * second_last_1d[(i*l):(i*l)+l][:, None]    # Maybe remove 1 from the diagonal!!!!
             Y[i] = Y[i] - (alpha * (first/np.abs(second)))
-        # plt.figure()
-        # plt.scatter(Y[:,0], Y[:,1])
-
-        # Y = Y - (alpha * (first/np.abs(second)))
     return Y
 
 def gradient_descent(X, y, a = 0.01, n = 1000):
@@ -113,7 +106,7 @@ def main():
     # Y = sammon(X, max_iter=1, epsilon=0.001, alpha=0.3, verbose=False)
     # print(Y)
     # print("-------------------------")
-    Y = fast_sammon(X, max_iter=100, epsilon=0.001, alpha=0.3, verbose=True)
+    Y = fast_sammon(X, max_iter=200, epsilon=0.001, alpha=0.1, verbose=True)
     # print(Y_new)
     # exit()
 
